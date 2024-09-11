@@ -1,0 +1,39 @@
+# Flutter project in flutter-app/sclithub
+flutter-app/sclithub/.dart_tool/
+flutter-app/sclithub/.idea/
+flutter-app/sclithub/.vscode/
+flutter-app/sclithub/.flutter-plugins
+flutter-app/sclithub/.flutter-plugins-dependencies
+flutter-app/sclithub/.packages
+flutter-app/sclithub/packages
+flutter-app/sclithub/build/
+flutter-app/sclithub/pubspec.lock
+flutter-app/sclithub/.metadata
+flutter-app/sclithub/.gradle/
+flutter-app/sclithub/android/app/build/
+flutter-app/sclithub/ios/Pods/
+flutter-app/sclithub/ios/.symlinks/
+flutter-app/sclithub/ios/Flutter/App.framework
+flutter-app/sclithub/ios/Flutter/Flutter.framework
+flutter-app/sclithub/web/compiled/
+
+# Flutter specific files
+flutter-app/sclithub/.flutter-plugins
+flutter-app/sclithub/flutter_export_environment.sh
+
+# Rust project in rust-backend
+rust-backend/target/
+rust-backend/Cargo.lock
+rust-backend/.cargo/
+
+# IDE-specific
+*.iml
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
