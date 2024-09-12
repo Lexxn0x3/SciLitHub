@@ -1,13 +1,20 @@
-
 #[macro_use] extern crate rocket;
 
-use mongodb::{Client, options::ClientOptions, bson::doc, bson::oid::ObjectId};
-use mongodb::bson;
+use mongodb::{Client, options::ClientOptions, bson::oid::ObjectId};
+use mongodb::bson::{doc, Document as BsconDoc, DateTime};
 use rocket::futures::TryStreamExt;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::http::Header;
 use rocket::{State, Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
+use uuid::Uuid;
+use rocket::data::ToByteUnit;
+use rocket::tokio::fs::File;
+use rocket::fs::{NamedFile};
+use std::fs;
+use std::path::{Path};
+use rocket::response::status::Custom;
+
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Document {
@@ -94,6 +101,63 @@ async fn create_document(client: &State<Client>, document: Json<Document>) -> Js
     Json(insert_result.inserted_id.as_object_id().unwrap())
 }
 
+#[post("/upload_pdf/<document_id>", data = "<file>")]
+async fn upload_pdf(document_id: String, file: rocket::data::Data<'_>) -> Result<String, Custom<String>> {
+    // Generate a unique filename using UUID
+    let pdf_id = Uuid::new_v4().to_string();
+    let pdf_directory = "pdfs/";
+    let storage_filename = format!("{}.pdf", pdf_id);
+    let pdf_path = format!("{}{}", pdf_directory, storage_filename);
+
+    // Ensure the PDFs directory exists
+    if let Err(e) = fs::create_dir_all(pdf_directory) {
+        return Err(Custom(rocket::http::Status::InternalServerError, format!("Failed to create directory: {}", e)));
+    }
+
+    // Write the PDF file to the server
+    let mut pdf_file = File::create(&pdf_path).await.map_err(|e| {
+        Custom(rocket::http::Status::InternalServerError, format!("Failed to save PDF: {}", e))
+    })?;
+    file.open(10.mebibytes()).stream_to(&mut pdf_file).await.map_err(|e| {
+        Custom(rocket::http::Status::InternalServerError, format!("Failed to stream PDF: {}", e))
+    })?;
+
+    // Clone document_id to avoid moving it
+    let document_id_cloned = document_id.clone();
+
+    // Connect to MongoDB and store the PDF metadata in the "pdfs" collection
+    let client_options = ClientOptions::parse("mongodb://localhost:27017").await.unwrap();
+    let client = Client::with_options(client_options).unwrap();
+    let collection = client.database("document_manager").collection("pdfs");
+
+    // Insert the metadata for the uploaded PDF
+    collection.insert_one(doc! {
+        "_id": pdf_id,
+        "document_id": document_id,
+        "storage_filename": storage_filename,
+        "uploaded_at": DateTime::now() // MongoDB-compatible timestamp
+    }, None).await.map_err(|e| {
+        Custom(rocket::http::Status::InternalServerError, format!("Failed to insert into MongoDB: {}", e))
+    })?;
+
+    Ok(format!("Uploaded PDF for document ID {}", document_id_cloned))
+}
+
+#[get("/pdf/<document_id>")]
+async fn get_pdf(document_id: String) -> Option<NamedFile> {
+    // Connect to MongoDB to retrieve the PDF metadata
+    let client_options = ClientOptions::parse("mongodb://localhost:27017").await.unwrap();
+    let client = Client::with_options(client_options).unwrap();
+    let collection = client.database("document_manager").collection("pdfs");
+
+    // Find the PDF entry by document_id
+    let pdf_entry: Option<BsconDoc> = collection.find_one(doc! { "document_id": &document_id }, None).await.unwrap();
+    let storage_filename = pdf_entry?.get_str("storage_filename").ok()?.to_string();
+
+    // Serve the PDF file from the filesystem
+    let pdf_path = Path::new("pdfs/").join(storage_filename);
+    NamedFile::open(pdf_path).await.ok()
+}
 // Handle preflight requests (OPTIONS method)
 #[options("/<_..>")]
 fn all_options() -> () {
@@ -110,6 +174,6 @@ async fn rocket() -> _ {
     rocket::build()
         .manage(client)
         .attach(CORS)  // Attach the CORS fairing
-        .mount("/", routes![get_documents, get_document_by_id, search_documents, create_document, all_options])
+        .mount("/", routes![get_documents, get_document_by_id, search_documents, create_document, all_options, get_pdf, upload_pdf])
 }
 

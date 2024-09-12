@@ -30,19 +30,21 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^0.13.4  # For making API requests
-  # For PDF viewing
-  syncfusion_flutter_pdfviewer: ^20.3.47
-  # For PDF viewing
-  flutter_pdfview: ^1.0.4
-
+  http: ^1.2.2  # For making API requests
   # For state management (optional)
   provider: ^6.0.3
 
+  path_provider: ^2.0.11
+
+  pdfrx: ^1.0.83
+
+  # For detecting the platform
+  universal_io: ^2.0.4  # Handles platform detection
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  file_picker: ^8.1.2
 
 dev_dependencies:
   flutter_test:
