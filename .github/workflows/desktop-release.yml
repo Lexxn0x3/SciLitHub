@@ -1,0 +1,54 @@
+name: Build and Release Flutter App for Windows
+
+on:
+  push:
+    tags:
+      - 'v*'  # This workflow will run whenever a tag starting with 'v' is pushed (e.g., v1.0.0)
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    # Step 1: Checkout the repo
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step 2: Setup Flutter on the GitHub runner
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 'stable'
+
+    # Step 3: Ensure flutter is available and all dependencies are fetched
+    - name: Install dependencies
+      run: flutter pub get
+      working-directory: flutter-app/scilithub
+
+    # Step 4: Build the Windows executable
+    - name: Build Flutter Windows .exe
+      run: flutter build windows --release
+      working-directory: flutter-app/scilithub
+
+    # Step 5: Archive the Windows executable
+    - name: Archive build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: flutter-windows-exe
+        path: flutter-app/scilithub/build/windows/runner/Release/scilithub.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download Windows build artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: flutter-windows-exe
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: flutter-windows-exe/scilithub.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
