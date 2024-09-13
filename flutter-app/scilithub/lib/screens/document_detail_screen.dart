@@ -1,10 +1,11 @@
-
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';  // Import the config file
+import '../api_key_manager.dart';
+import 'add_edit_document_screen.dart';  // Import the Add/Edit screen
 
 class DocumentDetailScreen extends StatefulWidget {
   final Map<String, dynamic> document;
@@ -39,8 +40,12 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   }
 
   Future<void> loadPdf(String documentId) async {
+    String? apiKey = await loadApiKey();
     try {
-      final response = await http.get(Uri.parse('${Config.apiUrl}/pdf/$documentId'));
+      final response = await http.get(
+        Uri.parse('${Config.apiUrl}/pdf/$documentId'),
+        headers: {'x-api-key': apiKey ?? ''},
+      );
 
       // Check if PDF is available
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
@@ -66,11 +71,85 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
+  Future<void> deleteDocument(String documentId) async {
+  String? apiKey = await loadApiKey();
+
+  try {
+    final response = await http.delete(
+      Uri.parse('${Config.apiUrl}/documents/$documentId'),
+      headers: {'x-api-key': apiKey ?? ''},
+    );
+
+    if (response.statusCode == 204) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Document deleted successfully.')),
+      );
+      Navigator.pop(context, true);  // Return true to indicate deletion
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete the document.')),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('An error occurred while deleting the document.')),
+    );
+  }
+}
+
+
   @override
   Widget build(BuildContext context) {
+    final documentId = widget.document['_id']?['\$oid'] ?? '';
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.document['title'] ?? 'Document Detail'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddEditDocumentScreen(document: widget.document),
+                ),
+              );
+              if (result == true) {
+                Navigator.pop(context, true);  // Return true to indicate the document was edited
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () async {
+              // Show confirmation dialog before deleting
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text('Delete Document'),
+                    content: const Text('Are you sure you want to delete this document?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (confirmed == true) {
+                deleteDocument(documentId);
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,4 +204,3 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     );
   }
 }
-

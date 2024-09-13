@@ -37,3 +37,8 @@ rust-backend/.cargo/
 .DS_Store
 Thumbs.db
 
+api.keys
+
+config/
+pdfs/
+

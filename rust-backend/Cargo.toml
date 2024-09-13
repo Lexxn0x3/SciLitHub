@@ -11,3 +11,4 @@ tokio = { version = "1", features = ["full"] }
 mongodb = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
+lazy_static = "1.5.0"

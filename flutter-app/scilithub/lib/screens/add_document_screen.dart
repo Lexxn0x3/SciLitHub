@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../config.dart';  // Import the config file
+import '../api_key_manager.dart';
 
 class AddDocumentScreen extends StatefulWidget {
   const AddDocumentScreen({Key? key}) : super(key: key);
@@ -29,11 +30,14 @@ class _AddDocumentScreenState extends State<AddDocumentScreen> {
 
 
 Future<void> createDocument() async {
+  String? apiKey = await loadApiKey();
+
   print('Creating document...');  // Logging for debugging
   final response = await http.post(
     Uri.parse('${Config.apiUrl}/documents'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
+      'x-api-key': apiKey??'',
     },
     body: jsonEncode({
       'title': title,
@@ -74,21 +78,31 @@ Future<void> createDocument() async {
       print('No PDF file selected.');  // Logging if no file is selected
       return;
     }
+     String? apiKey = await loadApiKey();
 
     print('Uploading PDF...');  // Logging for debugging
     final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('${Config.apiUrl}/upload_pdf/$documentId'),
-    );
-    request.files.add(await http.MultipartFile.fromPath('file', selectedPdfFile!.path));
+  'POST',
+  Uri.parse('${Config.apiUrl}/upload_pdf/$documentId'),
+);
 
-    final response = await request.send();
+// Add the API key to the headers
+request.headers['x-api-key'] = apiKey ?? '';
 
-    if (response.statusCode == 200) {
-      print('PDF uploaded successfully');
-    } else {
-      print('Failed to upload PDF. Status code: ${response.statusCode}');
-    }
+// Add the file to the request
+request.files.add(await http.MultipartFile.fromPath('file', selectedPdfFile!.path));
+
+// Send the request and await the response
+final response = await request.send();
+
+// Convert response to a more readable format (optional)
+final responseBody = await http.Response.fromStream(response);
+
+if (response.statusCode == 200) {
+  print('PDF uploaded successfully');
+} else {
+  print('Failed to upload PDF. Status: ${response.statusCode}');
+}
   }
 
   void pickPdfFile() async {
@@ -116,12 +130,14 @@ Future<void> handleSubmit() async {
   });
 
   String? documentId;
+  String? apiKey = await loadApiKey();
 
   // First, create the document
   final response = await http.post(
     Uri.parse('${Config.apiUrl}/documents'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
+      'x-api-key': apiKey??'',
     },
     body: jsonEncode({
       'title': title,
