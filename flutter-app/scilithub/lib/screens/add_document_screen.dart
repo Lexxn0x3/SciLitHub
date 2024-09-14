@@ -6,6 +6,10 @@ import 'dart:convert';
 import 'dart:io';
 import '../config.dart';  // Import the config file
 import '../api_key_manager.dart';
+import 'package:flutter/foundation.dart';  // Import for kIsWeb
+
+Uint8List? selectedPdfFileBytes;
+String? selectedPdfFileName;
 
 class AddDocumentScreen extends StatefulWidget {
   const AddDocumentScreen({Key? key}) : super(key: key);
@@ -26,100 +30,63 @@ class _AddDocumentScreenState extends State<AddDocumentScreen> {
 
   bool isSubmitting = false;
 
-  
+Future<void> uploadPdf(String documentId) async {
+  String? apiKey = await loadApiKey();  // Load the API key
 
+  final uri = Uri.parse('${Config.apiUrl}/upload_pdf/$documentId');
 
-Future<void> createDocument() async {
-  String? apiKey = await loadApiKey();
+  var request = http.MultipartRequest('POST', uri);
 
-  print('Creating document...');  // Logging for debugging
-  final response = await http.post(
-    Uri.parse('${Config.apiUrl}/documents'),
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-      'x-api-key': apiKey??'',
-    },
-    body: jsonEncode({
-      'title': title,
-      'tags': tags.split(',').map((tag) => tag.trim()).toList(),
-      'summary': summary,
-      'content': content,
-      'rating': rating,
-    }),
+  // Add the API key to the headers
+  request.headers['x-api-key'] = apiKey ?? '';
+
+  if (kIsWeb) {
+    // On web, use the bytes to upload the file
+    var fileBytes = selectedPdfFileBytes; // Uint8List from file picker
+    var fileName = selectedPdfFileName;   // Name of the file
+
+    // Add the file bytes to the request
+    request.files.add(http.MultipartFile.fromBytes(
+      'file', 
+      fileBytes!,
+      filename: fileName,
+    ));
+  } else {
+    // On mobile/desktop, use the file path
+    request.files.add(await http.MultipartFile.fromPath('file', selectedPdfFile!.path));
+  }
+
+  // Send the request and handle the response
+  var response = await request.send();
+
+  if (response.statusCode == 200) {
+    print('File uploaded successfully');
+  } else {
+    print('File upload failed with status: ${response.statusCode}');
+  }
+}
+
+void pickPdfFile() async {
+  FilePickerResult? result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['pdf'],
   );
 
-  print('Response status: ${response.statusCode}');
-  print('Response body: ${response.body}');
-
-  if (response.statusCode == 201 || response.statusCode == 200) {
-    final document = jsonDecode(response.body);
-
-    // Access the document ID directly from the "$oid" field
-    if (document['\$oid'] != null) {
-      String documentId = document['\$oid'];
-      print('Document created successfully with ID: $documentId');
-      
-      // Proceed to upload the PDF
-      if (selectedPdfFile != null) {
-        await uploadPdf(documentId);
-      }
+  if (result != null) {
+    if (kIsWeb) {
+      // On web, save bytes and name
+      selectedPdfFileBytes = result.files.single.bytes;
+      selectedPdfFileName = result.files.single.name;
     } else {
-      print('Document creation response does not contain "oid" field.');
-    }
-  } else {
-    print('Failed to create document. Status code: ${response.statusCode}');
-  }
-}
-
-
-
-  Future<void> uploadPdf(String documentId) async {
-    if (selectedPdfFile == null) {
-      print('No PDF file selected.');  // Logging if no file is selected
-      return;
-    }
-     String? apiKey = await loadApiKey();
-
-    print('Uploading PDF...');  // Logging for debugging
-    final request = http.MultipartRequest(
-  'POST',
-  Uri.parse('${Config.apiUrl}/upload_pdf/$documentId'),
-);
-
-// Add the API key to the headers
-request.headers['x-api-key'] = apiKey ?? '';
-
-// Add the file to the request
-request.files.add(await http.MultipartFile.fromPath('file', selectedPdfFile!.path));
-
-// Send the request and await the response
-final response = await request.send();
-
-// Convert response to a more readable format (optional)
-final responseBody = await http.Response.fromStream(response);
-
-if (response.statusCode == 200) {
-  print('PDF uploaded successfully');
-} else {
-  print('Failed to upload PDF. Status: ${response.statusCode}');
-}
-  }
-
-  void pickPdfFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-
-    if (result != null) {
+      // On mobile/desktop, save the file path
       setState(() {
         selectedPdfFile = File(result.files.single.path!);
       });
-      print('Selected file: ${selectedPdfFile!.path}');
-    } else {
-      print('No file selected.');
     }
+  } else {
+    print('No file selected.');
   }
+}
 
   
 Future<void> handleSubmit() async {
@@ -147,15 +114,16 @@ Future<void> handleSubmit() async {
       'rating': rating,
     }),
   );
-
+  print("doc created" + response.statusCode.toString());
   if (response.statusCode == 201 || response.statusCode == 200) {
     final document = jsonDecode(response.body);
     documentId = document['\$oid']; // Assuming the ID is returned like this
-    print('Document created with ID: $documentId');
+    print('Document created with ID: $documentId file: $selectedPdfFile');
 
     // Upload the PDF if a file was selected
     
-    if (documentId != null && selectedPdfFile != null) {
+    if (documentId != null && selectedPdfFileBytes != null) {
+      print("uploading pdf.....");
       await uploadPdf(documentId);  // Now it's safe to call uploadPdf
     }
 

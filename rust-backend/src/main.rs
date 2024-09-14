@@ -46,6 +46,7 @@ impl Fairing for CORS {
         res.set_header(Header::new("Access-Control-Allow-Origin", "*"));
         res.set_header(Header::new("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"));
         res.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type"));
+        res.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type, x-api-key"));
     }
 }
 

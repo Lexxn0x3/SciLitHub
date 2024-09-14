@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import '../config.dart';  // Import the config file
 import '../api_key_manager.dart';
 import 'add_edit_document_screen.dart';  // Import the Add/Edit screen
+import 'package:flutter/foundation.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class DocumentDetailScreen extends StatefulWidget {
   final Map<String, dynamic> document;
@@ -20,6 +22,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   String localPath = "";
   bool isLoading = true;
   bool hasPdf = true;
+  Uint8List? pdfBytes;  // PDF bytes for all platforms
 
   @override
   void initState() {
@@ -39,27 +42,24 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  Future<void> loadPdf(String documentId) async {
+   Future<void> loadPdf(String documentId) async {
     String? apiKey = await loadApiKey();
     try {
+      // Fetch the PDF from the API
       final response = await http.get(
         Uri.parse('${Config.apiUrl}/pdf/$documentId'),
-        headers: {'x-api-key': apiKey ?? ''},
+        headers: {'x-api-key': apiKey ?? ''}, // Pass the API key in headers
       );
 
-      // Check if PDF is available
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-        final bytes = response.bodyBytes;
-        final dir = await getApplicationDocumentsDirectory();
-        final file = File("${dir.path}/document.pdf");
-        await file.writeAsBytes(bytes, flush: true);
+        // Store the PDF bytes and display it
         setState(() {
-          localPath = file.path;
+          pdfBytes = response.bodyBytes;
           isLoading = false;
         });
       } else {
         setState(() {
-          hasPdf = false;  // No PDF available for this document
+          hasPdf = false; // No PDF available for this document
           isLoading = false;
         });
       }
@@ -193,8 +193,12 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : hasPdf
-                    ? PdfViewer.file(localPath)  // Display the PDF
+                : hasPdf && pdfBytes != null
+                    ? SfPdfViewer.memory(
+                                          pdfBytes!,
+                                          enableTextSelection: false,  // Disables text selection to avoid the hover issue
+                                          interactionMode: PdfInteractionMode.pan,  // Pan mode to avoid hover interaction
+                                        )
                     : const Center(
                         child: Text('No PDF available for this document.'),
                       ),
